@@ -1,0 +1,495 @@
+---
+title: "Project"
+author: "Nathaniel Zhu"
+date: "2023-11-06"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list=ls())
+```
+
+```{r}
+library(caret)
+library(gains)
+library(pROC)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(ggrepel)
+library(zoo)
+library(randomForest)
+library(stringr)
+
+```
+
+#Now first, let us import our data to the dataset:
+```{r}
+#Read Data
+crime_data <- read.csv("Data/Crime_Data_from_2020_to_Present.csv")
+
+```
+
+#Let's clean the data by only focusing on victim involved crimes:
+```{r}
+#Cleaning Data:
+clean_crime_data <- crime_data %>%
+  filter(Vict.Sex != "", 
+         Vict.Descent != "",
+         Vict.Age != 0,
+         Vict.Sex != "X",
+         Vict.Descent != "X"
+         )
+
+```
+
+#After we have cleaned the first step of the population. Now, let us set the seed and perform a sampling method of 1000 sample size. Next, let us also drop unnecessary columns in the dataset too.
+```{r}
+#Set Seeds
+set.seed(123)
+
+#Getting Sample Data with 1000 data rows
+sample_data <- clean_crime_data[sample(nrow(clean_crime_data),1000),]
+
+#We want to drop columns that are not very impactful in this dataset analysis
+columns_to_drop <- c('DR_NO', 'Rpt.Dist.No', 'Part.1-2', 'Crm.Cd.1', 'Crm.Cd.2', 'Crm.Cd.3', 'Crm.Cd.4', 'Cross.Street', 'Mocodes', 'Part.1.2')
+
+#Drop the Columns
+sample_data <- sample_data[, !(names(sample_data) %in% columns_to_drop)]
+
+
+```
+
+#Let us handle missing values in the vict sex column, input 'unknown' in to the N/A cells:
+```{r}
+#Set Date Rptd as date
+sample_data$Date.Rptd <- as.Date(sample_data$Date.Rptd, format = "%m/%d/%Y %I:%M:%S %p")
+
+#Set DATE.OCC as date
+sample_data$DATE.OCC <- as.Date(sample_data$DATE.OCC, format = "%m/%d/%Y %I:%M:%S %p")
+
+```
+
+#Descriptive Analysis: Boxplot
+```{r}
+boxplot(sample_data$TIME.OCC,
+        main = "Boxplot for TIME.OCC",
+        ylab = "Time Occurance")
+
+boxplot(sample_data$Vict.Age,
+        main = "Boxplot for Victim Age",
+        ylab = "Age")
+
+
+```
+
+#Descriptive analysis: Crime Type Frequency first
+```{r}
+#How many crimes happened in each categories
+crime_type_counts <- sample_data %>% 
+  count(Crm.Cd.Desc) %>% 
+  arrange(desc(n)) %>% 
+  head(10)
+
+#Add a column with wrapped text
+crime_type_counts$wrapped_desc <- str_wrap(crime_type_counts$Crm.Cd.Desc, width = 20)
+
+#Now, let us make the graph
+ggplot(crime_type_counts, aes(x = reorder(wrapped_desc, n), y = n)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip() +
+  geom_text(aes(label = n), hjust = 1.1, color = "white", size = 3.5) +
+  labs(title = "Top 10 Crime Types",
+       x = "Crime Type",
+       y = "Frequency"
+       )
+
+```
+
+#Descriptive Analysis: let us look at the victim sex distribution
+```{r}
+#Counting Crime based on Sex data
+crime_sex_counts <- sample_data %>%
+  count(Vict.Sex) %>%
+  arrange(desc(n))
+
+#Creating GGPlot
+ggplot(crime_sex_counts,
+       aes(x = reorder(Vict.Sex, n),
+           y = n)) +
+  geom_bar(stat = "identity", colour = "white") +
+  coord_flip() +
+  geom_text(aes(label = n), hjust = 1.1, color = "white") +
+  labs(title = "Victim Sex Bar Chart After Cleaning",
+       x = "Victim Sex",
+       y = "Frequency"
+       ) +
+  theme_bw()
+ 
+```
+
+#Descriptive Analysis: let us look into the temporal trends in R
+```{r}
+# Extracting year and month from DATE.OCC
+sample_data$Month <- format(as.Date(sample_data$DATE.OCC, "%m/%d/%Y"), "%m")
+sample_data$Year <- format(as.Date(sample_data$DATE.OCC, "%m/%d/%Y"), "%Y")
+
+#Yearly Trends
+yearly_trends <- sample_data %>%
+                group_by(Year) %>%
+                summarise(Count = n())
+
+#Graphing yearly trends
+ggplot(yearly_trends, aes(x = Year, y = Count, group = 1)) + 
+  geom_line() + 
+  geom_point() +
+  geom_text(aes(label = Count), vjust = 0.5, hjust = 1.3) +
+  labs(title = "Yearly Crime Trends",
+       x = "Year",
+       y = "Number of Crimes"
+       )
+
+```
+
+#Descriptive Analysis: Area Analysis in R
+```{r}
+# Counting crimes in each area
+area_crime_counts <- sample_data %>%
+                     count(AREA.NAME) %>%
+                     arrange(desc(n)) %>%
+                     head(10)
+
+# Plotting the areas with the highest crime rates
+ggplot(area_crime_counts, aes(x=reorder(AREA.NAME, n), y=n)) +
+  geom_bar(stat="identity") +
+  coord_flip() +
+  geom_text(aes(label = n), hjust = 1.1, color = "white") +
+  labs(title="Top 10 Areas with Highest Crime Rates", x="Area", y="Number of Crimes")
+
+
+```
+
+#Descriptive Analysis: Victim Descent Distribution
+```{r}
+#Analysing the total Victim Descent by Groups
+descent_crime_counts <- sample_data %>%
+  count(Vict.Descent) %>%
+  arrange(desc(n)) %>%
+  head(10)
+
+#Creating GGPlot
+ggplot(descent_crime_counts,
+       aes(x = reorder(Vict.Descent, n),
+           y = n)) +
+         geom_bar(stat = "identity") +
+         coord_flip() +
+         geom_text(aes(label = n),hjust = -0.0, color = "blue") +
+         labs(title = "Top 10 Victim Descent",
+              x = "Victim Descent",
+              y = "Number of Crimes"
+              )
+
+```
+
+#Time-Series Analysis: Trend Analysis
+```{r}
+#Let us create a new column called Date with the appropriate Date OCC date
+sample_data$Date <- as.Date(sample_data$DATE.OCC, format = "%m/%d/%Y")
+
+#Group and summarize the data
+crime_counts_by_date <- sample_data %>%
+  mutate(Year = format(Date, "%Y"),
+         Month = format(Date, "%m")) %>%
+  group_by(Year, Month) %>%
+  summarise(Crime_Count = n(), .groups = 'drop')
+
+#Aggregate
+crimes_by_month <- sample_data %>%
+  group_by(YearMonth = paste(Year, Month, sep = "-")) %>%
+  summarise(Crime_Count = n())
+
+#Create a ts objective starting from the first month and year of the dataset
+crimes_by_month$YearMonth <- as.yearmon(crimes_by_month$YearMonth, "%Y-%m")
+
+#Create two new Data to use it to plot the time series graph
+start_year <- as.numeric(format(min(as.Date(paste(crime_counts_by_date$Year, crime_counts_by_date$Month, "01", sep="-"))), "%Y"))
+start_month <- as.numeric(format(min(as.Date(paste(crime_counts_by_date$Year, crime_counts_by_date$Month, "01", sep="-"))), "%m"))
+
+
+if(length(crime_counts_by_date$Crime_Count) > 0) {
+  crime_ts <- ts(crime_counts_by_date$Crime_Count, start=c(start_year, start_month), frequency=12)
+}
+
+#Plotting the time series with a simple moving average
+plot(crime_ts,
+     main = "Crime Count Over Time", 
+     ylab = "Number of Crimes",
+     xlab = "Time"
+     )
+
+lines(forecast::ma(crime_ts, order = 12), col="blue")
+```
+
+#Time-Series Analysis: Seasonality
+```{r}
+forecast::seasonplot(crime_ts, 
+                     year.labels=TRUE, 
+                     year.labels.left=TRUE,
+                     main = "Time-Series Analysis Seasonality")
+
+```
+
+
+
+#Logistic Regression
+```{r}
+set.seed(666)
+
+#Transforming Time OCC into Time_When category for future use
+sample_data <- sample_data %>%
+  mutate(Time_When = case_when(
+    TIME.OCC >= 0 & TIME.OCC < 1200 ~ "Morning",
+    TIME.OCC >= 1200 & TIME.OCC < 1800 ~ "Afternoon",
+    TIME.OCC >= 1800 & TIME.OCC <= 2400 ~ "Evening",
+    TRUE ~ NA_character_
+  ))
+
+#Setting out Dependent Variables as dummy variable
+sample_data$gender <- ifelse(sample_data$Vict.Sex == "F", 0, 1)
+sample_data$gender <- as.factor(sample_data$gender)
+
+#Setting Control
+my_lr_Control <- trainControl(method = "cv", number = 10)
+
+#Creating Dummy Variables for our model:
+#Creating Dummies for Morning and Afternoon
+sample_data$MorningDummy <- ifelse(sample_data$Time_When == "Morning", 1, 0)
+sample_data$AfternoonDummy <- ifelse(sample_data$Time_When == "Afternoon", 1, 0)
+
+#Creating Dummy for weapon or not?
+sample_data$Weapon_or_not <- ifelse(is.na(sample_data$Weapon.Used.Cd), 0, 1)
+
+#randomly choose 60% of rows for training
+lr_train_index <- sample(nrow(sample_data),
+                         size = nrow(sample_data)*0.6)
+lr_training_sample <- sample_data[lr_train_index,]
+lr_validation_sample <- sample_data[-lr_train_index,]
+
+
+#Model 1 Lets Go
+log_model1 <- glm(gender ~ TIME.OCC +
+                  AREA +
+                  Crm.Cd +
+                  Vict.Age +
+                  Premis.Cd +
+                  Month +
+                  Year +
+                  MorningDummy +
+                  AfternoonDummy +
+                  Weapon_or_not, 
+                data = lr_training_sample, 
+                family = binomial)
+
+#Use the first model to predict the probabilities of outcomes
+predicted_model1_prob <- predict(log_model1,
+                                newdata = lr_validation_sample,
+                                type = "response")
+
+#Choose a cutoff prob to perform confusionMatrix analysis
+predicted_model1_class <- ifelse(predicted_model1_prob > 0.49, 1, 0)
+
+lr_cm1 <- confusionMatrix(as.factor(predicted_model1_class),
+                          as.factor(lr_validation_sample$gender),
+                          positive = "1")
+
+lr_cm1
+
+```
+
+```{r}
+#Let's choose a new logistic model:
+log_model2 <- glm(gender ~ TIME.OCC +
+                    AREA +
+                    Crm.Cd +
+                    Vict.Age +
+                    Month + 
+                    Year +
+                    MorningDummy +
+                    AfternoonDummy +
+                    Weapon_or_not,
+                  data = lr_training_sample,
+                  family = binomial)
+
+#Let us predict the outcomes based on validation sample
+predicted_model2_prob <- predict(log_model2,
+                                newdata = lr_validation_sample,
+                                type = "response")
+
+#Choose a cutoff point of 0.49
+predicted_model2_class <- ifelse(predicted_model2_prob > 0.49, 1, 0)
+
+lr_cm2 <- confusionMatrix(as.factor(predicted_model2_class),
+                          as_factor(lr_validation_sample$gender),
+                          positive = "1")
+lr_cm2
+
+```
+
+
+
+#KNN
+```{r}
+#Setting Seeds
+set.seed(666)
+
+#Formatting Time Slot into Time_Slot numeric values
+sample_data <- sample_data %>%
+  mutate(Time_Slot = case_when(
+    TIME.OCC >= 0 & TIME.OCC < 1200 ~ "1",
+    TIME.OCC >= 1200 & TIME.OCC < 1800 ~ "2",
+    TIME.OCC >= 1800 & TIME.OCC <= 2400 ~ "3",
+    TRUE ~ NA_character_
+  ))
+sample_data$Time_Slot <- as.factor(sample_data$Time_Slot)
+
+#Creating control and grid for KNN
+my_knn_Control <- trainControl(method = "cv", number = 10)
+my_knn_Grid <- expand.grid(.k = c(1:10))
+
+#Creating Dummies for Morning and Afternoon
+sample_data$MorningDummy <- ifelse(sample_data$Time_Slot == "Morning", 1, 0)
+sample_data$AfternoonDummy <- ifelse(sample_data$Time_Slot == "Afternoon", 1, 0)
+
+#Creating Dummy for weapon or not?
+sample_data$Weapon_or_not <- ifelse(is.na(sample_data$Weapon.Used.Cd), 0, 1)
+```
+
+```{r}
+set.seed(666)
+
+#Set Categorical columns to drop
+new_columns_to_drop <- c('Date.Rptd', 'DATE.OCC','TIME.OCC','AREA.NAME', 'Crm.Cd.Desc', 'Mocodes', 'Premis.Desc', 'Weapon.Desc', 'Status', 'Status.Desc', 'LOCATION', 'LAT', 'LON', 'Vict.Descent', 'Date', 'Weapon.Used.Cd', 'Vict.Sex', 'Time_When')
+
+#Drop the Columns
+numeric_only_data <- sample_data[, !(names(sample_data) %in% new_columns_to_drop)]
+
+#Train Index
+numeric_train_index <- sample(nrow(numeric_only_data), size = nrow(numeric_only_data)*0.6)
+
+#Train Sample
+numeric_train_sample <- numeric_only_data[numeric_train_index,]
+
+#Validation Sample
+numeric_validation_sample <- numeric_only_data[-numeric_train_index,]
+
+#Getting KNN
+KNN_ALL <- train(gender ~.,
+                 data = numeric_train_sample,
+                 method = "knn",
+                 trControl = my_knn_Control,
+                 tuneGrid = my_knn_Grid
+                 )
+
+KNN_ALL
+
+```
+
+```{r}
+#Getting Prediction for KNN
+KNN_Class <- predict(KNN_ALL,
+                     newdata = numeric_validation_sample
+                     )
+
+#Confusion Matrix Set Up
+confusionMatrix(KNN_Class,
+                numeric_validation_sample$gender,
+                positive = "1")
+
+```
+
+
+```{r}
+#Predicitng Probability
+KNN_Class_prob <- predict(KNN_ALL,
+                          newdata = numeric_validation_sample,
+                          type = "prob"
+                          )
+
+head(KNN_Class_prob)
+
+```
+
+```{r}
+#Displaying Confusion Matrix for the probability with a cutoff
+confusionMatrix(as.factor(ifelse(KNN_Class_prob[,2]>0.49, "1", "0")),
+                numeric_validation_sample$gender,
+                positive = "1")
+
+numeric_validation_sample <- as.numeric(as.character(numeric_validation_sample$gender))
+
+```
+
+```{r}
+#Displaying ROC Graph
+roc_object <- roc(numeric_validation_sample,
+                  KNN_Class_prob[,2])
+plot.roc(roc_object,
+         main = "ROC Curve",
+         xlab = "False Positive Rate",
+         ylab = "True Positive Rate",
+         col = c("blue")
+         )
+
+auc(roc_object)
+
+```
+
+#IDK IF WE WANT TO USE THIS OR NOT? 
+#Read New Data Excel
+```{r}
+new_data <- readxl::read_excel("Data/New_Data.xlsx")
+
+```
+
+#Aggregate Crime Frequency in each Area
+```{r}
+crime_counts_by_area <- sample_data %>%
+  group_by(AREA) %>%
+  summarise(Total_Crimes = n())
+
+crime_counts_by_area
+
+```
+
+#Combine Crime Frequency in each area with new data
+
+```{r}
+frequency_crime_data <- left_join(crime_counts_by_area, new_data, by = "AREA")
+
+cleaned_frequency_crime <- subset(frequency_crime_data, select = -c(AREA, Area_Desc, Zipcode))
+cleaned_frequency_crime
+
+```
+
+#Multiple Linear Regression Model Whole:
+
+```{r}
+frequency_crime_regression <- lm(Total_Crimes ~ .,
+                                 data = cleaned_frequency_crime)
+
+summary(frequency_crime_regression)
+
+```
+
+#MLR Model 1
+
+```{r}
+summary(lm(Total_Crimes ~ Median_Income + Total_Population + Sex_Percentage, data = cleaned_frequency_crime))
+
+```
