@@ -5,7 +5,7 @@ This repository contains project materials for the Fall 2023 MGT 256 class. This
 For those who are new to this folder, the `Project-Code.rmd`, `Project-Code.html`, and `Project-Code.Rproj` files are our main coding files. The data is originally obtained from Data.gov, link will be attached below. Feel free to explore more options beyond this analysis report.
 
 ### Project Idea
-
+This project focuses on analyzing crime data in Los Angeles to identify patterns and trends. By leveraging various data analysis techniques, we aim to provide insights into crime distribution across different neighborhoods, the types of crimes most prevalent in specific areas, and temporal patterns such as monthly or yearly trends. The goal is to assist local authorities and policymakers in understanding the crime landscape better, enabling them to implement more effective crime prevention strategies and resource allocation.
 
 ## Contents
 - **`Project-Code.rmd`**: R Markdown file which contains the majority of the codes.
