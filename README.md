@@ -10,6 +10,7 @@ This project focuses on analyzing crime data in Los Angeles to identify patterns
 ## Contents
 - **`Project-Code.rmd`**: R Markdown file which contains the majority of the codes.
 - **`Project-Code.html`**: HTML export of the R Markdown for easy viewing.
+- **`Project-Code.Rproj`**: Main R Project file to use for R Studio.
 - **`Paper-Report.docs`**: Documents which reports our finding and analysis during the project.
 - **`Final-Presentation.ppt`**: Presentation slides that include our final findings and analysis.
 - **`Data Folder`**: Contains the datasets used for analysis. **Disclaimer**: The data is obtained from Data.gov [Crime Data from 2020 to Present](https://catalog.data.gov/dataset/crime-data-from-2020-to-present) published by City of Los Angeles. All data are used for educational purposes only.
